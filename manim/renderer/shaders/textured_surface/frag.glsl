@@ -38,5 +38,5 @@ void main() {
         gloss,
         shadow
     );
-    frag_color.a = v_opacity;
+    frag_color.a *= v_opacity;  // keep the texture's own alpha (transparent PNGs)
 }
