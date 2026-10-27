@@ -427,13 +427,20 @@ class OpenGLTexturedSurface(OpenGLSurface):
             **kwargs,
         )
 
+    # Images are shared between surfaces using the same file, so the renderer
+    # (which keys textures by image identity) uploads each file to the GPU once.
+    _image_cache: dict[tuple[str, str], Image.Image] = {}
+
     def get_image_from_file(
         self,
         image_file: str | Path,
         image_mode: str,
     ) -> Image.Image:
         image_file = get_full_raster_image_path(image_file)
-        return Image.open(image_file).convert(image_mode)
+        key = (str(image_file), image_mode)
+        if key not in self._image_cache:
+            self._image_cache[key] = Image.open(image_file).convert(image_mode)
+        return self._image_cache[key]
 
     def init_data(self) -> Self:
         super().init_data()
