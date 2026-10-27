@@ -684,6 +684,7 @@ class OpenGLRenderer:
 
         self.perspective_uniforms = {
             "frame_shape": camera.get_shape(),
+            "default_frame_shape": (config.frame_width, config.frame_height),
             "anti_alias_width": anti_alias_width,
             "camera_center": tuple(camera.get_center()),
             "camera_rotation": tuple(np.array(rotation).T.flatten()),
@@ -723,7 +724,7 @@ class OpenGLRenderer:
 
             # Set textures.
             for name, path in shader_wrapper.texture_paths.items():
-                tid = self.get_texture_id(str(path))
+                tid = self.get_texture_id(path)
                 shader_texture = shader.shader_program[name]
                 if not isinstance(
                     shader_texture, (moderngl.Uniform, moderngl.UniformBlock)
@@ -768,7 +769,7 @@ class OpenGLRenderer:
             mesh.set_uniforms(self)
             mesh.render()
 
-    def get_texture_id(self, path: str) -> int:
+    def get_texture_id(self, path: str | Image.Image) -> int:
         """
         Retrieves the OpenGL texture ID associated with the given image file path.
 
@@ -784,13 +785,15 @@ class OpenGLRenderer:
         int
             The OpenGL texture ID corresponding to the given path.
         """
+        # In-memory images (e.g. from OpenGLTexturedSurface) are keyed by identity.
+        key = f"<image {id(path)}>" if isinstance(path, Image.Image) else str(path)
         return (
-            self.path_to_texture_id[path]
-            if path in self.path_to_texture_id
-            else self._create_texture(path)
+            self.path_to_texture_id[key]
+            if key in self.path_to_texture_id
+            else self._create_texture(path, key)
         )
 
-    def _create_texture(self, image_path: str) -> int:
+    def _create_texture(self, image_path: str | Image.Image, key: str | None = None) -> int:
         """
         Create an OpenGL texture from the given image file path, get its texture ID,
         and store it in `self.path_to_texture_id[image_path]`.
@@ -805,7 +808,12 @@ class OpenGLRenderer:
         int
             The texture ID assigned to the newly created texture.
         """
-        with Image.open(image_path) as img:
+        opened = (
+            contextlib.nullcontext(image_path)
+            if isinstance(image_path, Image.Image)
+            else Image.open(image_path)
+        )
+        with opened as img:
             tid = len(self.path_to_texture_id)
 
             # grayscale image
@@ -825,10 +833,14 @@ class OpenGLRenderer:
             )
         texture.repeat_x = False
         texture.repeat_y = False
-        texture.filter = (moderngl.NEAREST, moderngl.NEAREST)
+        # Mipmapped linear filtering keeps large photo textures (e.g. Earth maps)
+        # smooth when drawn smaller than their native size.
+        texture.build_mipmaps()
+        texture.filter = (moderngl.LINEAR_MIPMAP_LINEAR, moderngl.LINEAR)
+        texture.anisotropy = 16.0
         texture.swizzle = swizzle
         texture.use(location=tid)
-        self.path_to_texture_id[image_path] = tid
+        self.path_to_texture_id[key or str(image_path)] = tid
         return tid
 
     def update_skipping_status(self) -> None:

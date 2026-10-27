@@ -413,12 +413,19 @@ class OpenGLTexturedSurface(OpenGLSurface):
             self.num_textures = 2
 
         self.uv_surface = uv_surface
-        self.uv_func = uv_surface.uv_func
-        self.u_range = uv_surface.u_range
-        self.v_range = uv_surface.v_range
-        self.resolution = uv_surface.resolution
-        self.gloss = self.uv_surface.gloss
-        super().__init__(texture_paths=texture_paths, **kwargs)
+        # Forward the surface geometry: OpenGLSurface.__init__ would otherwise reset
+        # resolution/ranges to their defaults, so the triangle indices would not
+        # match the number of points taken from uv_surface.
+        kwargs.setdefault("gloss", uv_surface.gloss)
+        kwargs.setdefault("shadow", uv_surface.shadow)
+        super().__init__(
+            uv_func=uv_surface.uv_func,
+            u_range=uv_surface.u_range,
+            v_range=uv_surface.v_range,
+            resolution=uv_surface.resolution,
+            texture_paths=texture_paths,
+            **kwargs,
+        )
 
     def get_image_from_file(
         self,
