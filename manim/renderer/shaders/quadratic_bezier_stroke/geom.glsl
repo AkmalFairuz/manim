@@ -56,6 +56,15 @@ const float PI = 3.141592653;
 #include ../include/get_unit_normal.glsl
 #include ../include/finalize_color.glsl
 
+// Fixed-in-frame mobjects ignore the camera zoom, so their anti-aliasing width
+// (given in zoomed-frame units) must be converted back to the default frame.
+float aa_width(){
+    if (bool(is_fixed_in_frame)) {
+        return anti_alias_width * default_frame_shape.y / frame_shape.y;
+    }
+    return anti_alias_width;
+}
+
 
 void flatten_points(in vec3[3] points, out vec2[3] flat_points){
     for(int i = 0; i < 3; i++){
@@ -127,7 +136,7 @@ int get_corners(vec2 controls[3], int degree, float stroke_widths[3], out vec2 c
     // aaw is the added width given around the polygon for antialiasing.
     // In case the normal is faced away from (0, 0, 1), the vector to the
     // camera, this is scaled up.
-    float aaw = anti_alias_width;
+    float aaw = aa_width();
     float buff0 = 0.5 * stroke_widths[0] + aaw;
     float buff2 = 0.5 * stroke_widths[2] + aaw;
     float aaw0 = (1 - has_prev) * aaw;
@@ -246,7 +255,7 @@ void main() {
     // Find uv conversion matrix
     mat3 xy_to_uv = get_xy_to_uv(flat_controls[0], flat_controls[1]);
     float scale_factor = length(flat_controls[1] - flat_controls[0]);
-    uv_anti_alias_width = anti_alias_width / scale_factor;
+    uv_anti_alias_width = aa_width() / scale_factor;
     uv_b2 = (xy_to_uv * vec3(flat_controls[2], 1.0)).xy;
 
     // Emit each corner

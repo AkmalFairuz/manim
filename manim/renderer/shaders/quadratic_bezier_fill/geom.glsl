@@ -39,6 +39,15 @@ out float bezier_degree;
 #include ../include/get_unit_normal.glsl
 #include ../include/finalize_color.glsl
 
+// Fixed-in-frame mobjects ignore the camera zoom, so their anti-aliasing width
+// (given in zoomed-frame units) must be converted back to the default frame.
+float aa_width(){
+    if (bool(is_fixed_in_frame)) {
+        return anti_alias_width * default_frame_shape.y / frame_shape.y;
+    }
+    return anti_alias_width;
+}
+
 
 void emit_vertex_wrapper(vec3 point, int index){
     color = finalize_color(
@@ -75,7 +84,7 @@ void emit_pentagon(vec3[3] points, vec3 normal){
     vec3 p2_perp = cross(t12, normal);
 
     bool fill_inside = orientation > 0;
-    float aaw = anti_alias_width;
+    float aaw = aa_width();
     vec3 corners[5];
     if(fill_inside){
         // Note, straight lines will also fall into this case, and since p0_perp and p2_perp
@@ -99,7 +108,7 @@ void emit_pentagon(vec3[3] points, vec3 normal){
 
     mat4 xyz_to_uv = get_xyz_to_uv(p0, p1, normal);
     uv_b2 = (xyz_to_uv * vec4(p2, 1)).xy;
-    uv_anti_alias_width = anti_alias_width / length(p1 - p0);
+    uv_anti_alias_width = aa_width() / length(p1 - p0);
 
     for(int i = 0; i < 5; i++){
         vec3 corner = corners[i];
